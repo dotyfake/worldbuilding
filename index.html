@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Worldbuilding Pentagon Helper</title>
+    <style>
+        /* --- Cài đặt tổng thể --- */
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
+
+        :root {
+            --bg-color: #12121e;
+            --node-bg: #1a1a2e;
+            --node-border: #4a4a68;
+            --text-color: #e0e0e0;
+            --primary-glow: #00f6ff;
+            --secondary-glow: #ffc700;
+            --panel-bg: #1f1f33;
+            --panel-border: #33334d;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            padding: 20px;
+        }
+
+        /* --- Container chính --- */
+        #main-container {
+            display: flex;
+            gap: 40px;
+            align-items: center;
+            max-width: 1400px;
+            width: 100%;
+        }
+
+        /* --- Khối Ngũ Giác --- */
+        #pentagon-container {
+            position: relative;
+            aspect-ratio: 1 / 1;
+            flex-shrink: 0;
+            width: 600px;
+            max-width: 90vw;
+            margin: auto;
+        }
+
+        /* --- SVG để vẽ đường nối --- */
+        #pentagon-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+            pointer-events: none; /* Cho phép click xuyên qua SVG */
+        }
+
+        #connection-line {
+            stroke: var(--primary-glow);
+            stroke-width: 3px;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 5px var(--primary-glow)) drop-shadow(0 0 10px var(--primary-glow));
+            opacity: 0;
+            transition: opacity 0.4s ease, stroke 0.4s ease;
+        }
+        
+        #connection-line.visible {
+            opacity: 1;
+        }
+
+        /* --- Các đỉnh (Node) --- */
+        .node {
+            position: absolute;
+            width: 130px;
+            height: 130px;
+            background-color: var(--node-bg);
+            border: 2px solid var(--node-border);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            font-size: 13px;
+            font-weight: bold;
+            line-height: 1.3;
+            padding: 10px;
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            /* Transform origin ở tâm để scale đẹp hơn */
+            transform-origin: center center; 
+        }
+
+        .node:hover {
+            transform: scale(1.1);
+            border-color: var(--primary-glow);
+        }
+
+        .node.selected {
+            border-color: var(--primary-glow);
+            box-shadow: 0 0 15px 5px var(--primary-glow), inset 0 0 10px var(--primary-glow);
+            animation: pulse 2s infinite;
+        }
+
+        .node.selected.second {
+            border-color: var(--secondary-glow);
+            box-shadow: 0 0 15px 5px var(--secondary-glow), inset 0 0 10px var(--secondary-glow);
+            animation: pulse-second 2s infinite;
+        }
+        
+        #connection-line.second {
+            stroke: var(--secondary-glow);
+            filter: drop-shadow(0 0 5px var(--secondary-glow)) drop-shadow(0 0 10px var(--secondary-glow));
+        }
+
+        /* --- Animation phát sáng --- */
+        @keyframes pulse {
+            0% { box-shadow: 0 0 15px 5px var(--primary-glow), inset 0 0 10px var(--primary-glow); }
+            50% { box-shadow: 0 0 25px 8px var(--primary-glow), inset 0 0 15px var(--primary-glow); }
+            100% { box-shadow: 0 0 15px 5px var(--primary-glow), inset 0 0 10px var(--primary-glow); }
+        }
+
+        @keyframes pulse-second {
+            0% { box-shadow: 0 0 15px 5px var(--secondary-glow), inset 0 0 10px var(--secondary-glow); }
+            50% { box-shadow: 0 0 25px 8px var(--secondary-glow), inset 0 0 15px var(--secondary-glow); }
+            100% { box-shadow: 0 0 15px 5px var(--secondary-glow), inset 0 0 10px var(--secondary-glow); }
+        }
+
+        /* --- Khung hiển thị nội dung --- */
+        #content-panel {
+            flex-grow: 1;
+            background-color: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 25px;
+            height: 80vh;
+            max-height: 700px;
+            overflow-y: auto;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateX(30px) scale(0.95);
+            transition: opacity 0.5s ease, transform 0.5s ease, visibility 0.5s;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        #content-panel.visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(0) scale(1);
+        }
+
+        #content-panel h2 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--node-border);
+            color: var(--primary-glow);
+        }
+        
+        #content-panel .interaction-block {
+            margin-bottom: 30px;
+        }
+
+        #content-panel h3 {
+            font-size: 18px;
+            color: var(--secondary-glow);
+            margin-bottom: 10px;
+        }
+
+        #content-panel p {
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            font-weight: 300;
+        }
+
+        #content-panel strong {
+            font-weight: 700;
+            color: #fff;
+        }
+        
+        #content-panel i {
+            color: #ccc;
+        }
+
+        /* --- Scrollbar tùy chỉnh --- */
+        #content-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+        #content-panel::-webkit-scrollbar-track {
+            background: var(--bg-color);
+            border-radius: 10px;
+        }
+        #content-panel::-webkit-scrollbar-thumb {
+            background: var(--node-border);
+            border-radius: 10px;
+        }
+        #content-panel::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-glow);
+        }
+        
+        /* --- Responsive cho màn hình nhỏ --- */
+        @media (max-width: 1024px) {
+            #main-container {
+                flex-direction: column;
+                gap: 20px;
+            }
+            #pentagon-container {
+                width: 500px;
+                margin-bottom: 20px;
+            }
+            #content-panel {
+                width: 100%;
+                max-width: 90vw;
+                height: 50vh;
+                transform: translateY(30px) scale(0.95);
+            }
+            #content-panel.visible {
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        @media (max-width: 600px) {
+             #pentagon-container {
+                width: 100%;
+                min-height: 350px; /* Đảm bảo không bị co quá nhỏ */
+            }
+            .node {
+                width: 100px;
+                height: 100px;
+                font-size: 10px;
+                padding: 5px;
+            }
+             #content-panel h2 {
+                font-size: 20px;
+            }
+            #content-panel h3 {
+                font-size: 16px;
+            }
+            #content-panel p {
+                font-size: 14px;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="main-container">
+        <div id="pentagon-container">
+            <!-- SVG để vẽ đường kết nối -->
+            <svg id="pentagon-svg">
+                <line id="connection-line" x1="0" y1="0" x2="0" y2="0" />
+            </svg>
+
+            <!-- Các đỉnh của ngũ giác -->
+            <div class="node" data-id="geography" data-name="ĐỊA LÝ & KHÍ HẬU">ĐỊA LÝ &<br>KHÍ HẬU</div>
+            <div class="node" data-id="history" data-name="LỊCH SỬ & VĂN HÓA">LỊCH SỬ &<br>VĂN HÓA</div>
+            <div class="node" data-id="politics" data-name="THỂ CHẾ CHÍNH TRỊ & XÃ HỘI">THỂ CHẾ CHÍNH TRỊ<br>& XÃ HỘI</div>
+            <div class="node" data-id="economy" data-name="KINH TẾ & CÔNG NGHỆ">KINH TẾ &<br>CÔNG NGHỆ</div>
+            <div class="node" data-id="supernatural" data-name="HỆ THỐNG SIÊU NHIÊN">HỆ THỐNG<br>SIÊU NHIÊN</div>
+        </div>
+
+        <div id="content-panel">
+            <div id="content-display">
+                <!-- Nội dung sẽ được JS chèn vào đây -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // --- CƠ SỞ DỮ LIỆU NỘI DUNG ---
+        // Chuyển toàn bộ text được cung cấp thành một đối tượng JS để dễ dàng truy xuất
+        const worldbuildingData = {
+            geography: {
+                title: "I. Khi ĐỊA LÝ & KHÍ HẬU là Nguyên Nhân Gốc",
+                impacts: {
+                    history: `<h3>Tác động lên LỊCH SỬ & VĂN HÓA:</h3>
+                        <p><strong>Phân tích:</strong> Một vùng đất bị chia cắt bởi những dãy núi cao hiểm trở hoặc các eo biển rộng lớn sẽ khiến các cộng đồng phát triển một cách biệt lập. Sự cô lập này dẫn đến việc hình thành các nền văn hóa, ngôn ngữ và tín ngưỡng riêng biệt. Lịch sử của họ sẽ không phải là những cuộc chinh phạt đế quốc, mà là những cuộc xung đột nhỏ lẻ, dai dẳng giữa các "tiểu quốc".</p>
+                        <p><i>Ví dụ: Thế giới trong The Elder Scrolls V: Skyrim. Địa hình núi non hiểm trở của Skyrim tạo nên một nền văn hóa Nord kiên cường, độc lập và có phần thô ráp. Họ tôn thờ các vị thần cổ xưa gắn liền với núi non và sương tuyết, khác biệt hoàn toàn với các vùng đất đồng bằng của Đế Chế.</i></p>`,
+                    politics: `<h3>Tác động lên THỂ CHẾ CHÍNH TRỊ & XÃ HỘI:</h3>
+                        <p><strong>Phân tích:</strong> Một quốc gia sa mạc với các ốc đảo là nguồn sống duy nhất. Quyền kiểm soát nguồn nước sẽ đồng nghĩa với quyền lực tuyệt đối. Điều này tự nhiên sẽ dẫn đến một thể chế chính trị tập trung, có thể là một chế độ quân chủ chuyên chế hoặc thần quyền, nơi nhà vua/giáo chủ được coi là người "ban phát sự sống" thông qua việc phân phối nước.</p>
+                        <p><i>Ví dụ: Hành tinh Arrakis trong Dune. Người Fremen có một cấu trúc xã hội cực kỳ kỷ luật và tôn sùng những người có khả năng tìm kiếm và bảo tồn nước. Thể chế của họ vừa mang tính bộ lạc, vừa mang tính tôn giáo sâu sắc, tất cả đều xoay quanh sự khắc nghiệt của sa mạc.</i></p>`,
+                    economy: `<h3>Tác động lên KINH TẾ & CÔNG NGHỆ:</h3>
+                        <p><strong>Phân tích:</strong> Một quần đảo nhiệt đới giàu các loại gia vị quý hiếm và có nhiều bến cảng tự nhiên. Nền kinh tế của họ sẽ không dựa vào nông nghiệp quy mô lớn mà là thương mại hàng hải. Công nghệ sẽ tập trung vào việc đóng những con tàu nhanh và chắc chắn, các kỹ thuật định vị (thiên văn học), và vũ khí hải quân để bảo vệ các tuyến đường thương mại khỏi cướp biển.</p>
+                        <p><i>Ví dụ: Nhiều quốc gia trong thế giới One Piece có nền kinh tế đặc thù dựa trên vị trí địa lý của hòn đảo (Water 7 chuyên đóng tàu, Alabasta là vương quốc sa mạc...).</i></p>`,
+                    supernatural: `<h3>Tác động lên HỆ THỐNG SIÊU NHIÊN:</h3>
+                        <p><strong>Phân tích:</strong> Một vùng đất có "Ma Lực Tuyến" (Ley Lines) - những dòng chảy năng lượng ma thuật tự nhiên - hội tụ dày đặc. Cây cối ở đây có thể có tri giác, động vật có những khả năng kỳ lạ. Sức mạnh ma thuật ở đây sẽ mang tính "tự nhiên", "hoang dã". Các pháp sư sinh ra ở đây có thể không cần học hành bài bản mà có thể kết nối trực tiếp với năng lượng của vùng đất, trở thành các Druid hoặc Shaman.</p>
+                        <p><i>Ví dụ: Khu rừng Brokilon của các Dryad trong The Witcher. Đó là một khu rừng cổ xưa, nơi ma thuật tự nhiên mạnh đến mức gần như có ý thức riêng, và nó định hình hoàn toàn sức mạnh và văn hóa của những sinh vật sống trong đó.</i></p>`
+                }
+            },
+            history: {
+                title: "II. Khi LỊCH SỬ & VĂN HÓA là Nguyên Nhân Gốc",
+                impacts: {
+                    geography: `<h3>Tác động lên ĐỊA LÝ & KHÍ HẬU:</h3>
+                        <p><strong>Phân tích:</strong> Trong quá khứ, một đế chế pháp sư hùng mạnh đã khai thác năng lượng của mặt trời quá mức, gây ra một thảm họa ma thuật làm thay đổi trục của hành tinh. Hậu quả là một vùng đất vốn trù phú giờ đây chìm trong băng giá vĩnh cửu. Lịch sử đã vĩnh viễn thay đổi bản đồ và khí hậu.</p>
+                        <p><i>Ví dụ: Vùng đất Mournland trong bối cảnh Eberron (Dungeons & Dragons). Một sự kiện thảm khốc không rõ nguyên nhân (The Mourning) đã biến cả một quốc gia thành một vùng đất chết chóc, bị bao phủ bởi một lớp sương mù xám ma quái, nơi các quy luật vật lý và ma thuật bị bóp méo.</i></p>`,
+                    politics: `<h3>Tác động lên THỂ CHẾ CHÍNH TRỊ & XÃ HỘI:</h3>
+                        <p><strong>Phân tích:</strong> Một quốc gia được hình thành sau một cuộc cách mạng lật đổ ách thống trị của một đế quốc tàn bạo. Ký ức về sự áp bức này đã ăn sâu vào văn hóa của họ. Kết quả là, họ xây dựng một thể chế cộng hòa với hệ thống "tam quyền phân lập" cực kỳ nghiêm ngặt để ngăn chặn bất kỳ cá nhân hay phe phái nào thâu tóm quyền lực. Lòng yêu nước và tinh thần chống ngoại xâm của họ rất cao.</p>
+                        <p><i>Ví dụ: Liên Minh các Hành Tinh Tự Do trong Legend of the Galactic Heroes được thành lập bởi những người trốn thoát khỏi chế độ quân chủ chuyên chế của Đế Chế. Thể chế dân chủ của họ, dù có nhiều thiếu sót, vẫn được xây dựng dựa trên lý tưởng chống lại sự độc tài mà họ đã trải qua.</i></p>`,
+                    economy: `<h3>Tác động lên KINH TẾ & CÔNG NGHỆ:</h3>
+                        <p><strong>Phân tích:</strong> Tôn giáo chính của vương quốc tin rằng cơ thể con người là một tác phẩm thiêng liêng và không thể bị xâm phạm. Tín ngưỡng này (văn hóa) dẫn đến việc cấm hoàn toàn các hoạt động giải phẫu cơ thể. Hậu quả là y học của họ cực kỳ lạc hậu, nhưng công nghệ chế tạo các loại thuốc và thảo dược trị liệu lại rất phát triển. Nền kinh tế sẽ có một ngành công nghiệp thảo dược và giả kim thuật cực thịnh.</p>`,
+                    supernatural: `<h3>Tác động lên HỆ THỐNG SIÊU NHIÊN:</h3>
+                        <p><strong>Phân tích:</strong> Một lời tiên tri cổ xưa (lịch sử/thần thoại) nói rằng một đứa trẻ mang "Ấn Rồng" sẽ hủy diệt thế giới. Vì lời tiên tri này, văn hóa xã hội hình thành một nỗi sợ hãi tột độ với những người có năng lực liên quan đến rồng. Bất kỳ ai bộc lộ sức mạnh này sẽ bị săn đuổi và tiêu diệt. Hệ thống siêu nhiên này, dù có tiềm năng hùng mạnh, đã bị chính văn hóa và lịch sử kìm kẹp và biến thành một lời nguyền.</p>
+                        <p><i>Ví dụ: Các Jedi trong Star Wars sau Lệnh 66. Lịch sử về cuộc thanh trừng đã biến họ từ những người bảo vệ nền cộng hòa thành những kẻ bị săn đuổi. Việc sử dụng Thần Lực trở nên cực kỳ nguy hiểm, và văn hóa của Dòng tu Jedi gần như bị xóa sổ.</i></p>`
+                }
+            },
+            politics: {
+                title: "III. Khi THỂ CHẾ CHÍNH TRỊ & XÃ HỘI là Nguyên Nhân Gốc",
+                impacts: {
+                    geography: `<h3>Tác động lên ĐỊA LÝ & KHÍ HẬU:</h3>
+                        <p><strong>Phân tích:</strong> Một đế chế quân phiệt, hiếu chiến có một chính sách khai thác tài nguyên đến cạn kiệt để phục vụ cho cỗ máy chiến tranh. Họ tàn phá rừng để lấy gỗ đóng chiến thuyền, khai thác hầm mỏ lộ thiên gây ô nhiễm nguồn nước, xây dựng những pháo đài khổng lồ làm thay đổi cả hệ sinh thái. Thể chế chính trị của họ đang trực tiếp hủy hoại môi trường sống.</p>
+                        <p><i>Ví dụ: Isengard dưới sự kiểm soát của Saruman trong The Lord of the Rings. Một thung lũng xanh tươi đã bị biến thành một khu công nghiệp địa ngục với các hầm lò và xưởng vũ khí, tất cả chỉ để phục vụ cho tham vọng quyền lực của một cá nhân.</i></p>`,
+                    history: `<h3>Tác động lên LỊCH SỬ & VĂN HÓA:</h3>
+                        <p><strong>Phân tích:</strong> Một chế độ thần quyền nơi Giáo hội nắm mọi quyền lực. Để củng cố địa vị, Giáo hội sẽ cho viết lại lịch sử, xóa bỏ mọi ghi chép về các tôn giáo cổ xưa hoặc các khám phá khoa học trái với giáo lý. Nền văn hóa sẽ trở nên cực kỳ sùng đạo nhưng đồng thời cũng rất giáo điều và thiếu sáng tạo. Nghệ thuật chỉ được phép mô tả các tích truyện tôn giáo.</p>
+                        <p><i>Ví dụ: Thế giới trong His Dark Materials của Philip Pullman. Magisterium (Giáo hội) kiểm soát mọi khía cạnh của đời sống và tri thức, coi các khám phá về "Bụi" (Dust) là dị giáo và sẵn sàng dùng mọi thủ đoạn để dập tắt chúng.</i></p>`,
+                    economy: `<h3>Tác động lên KINH TẾ & CÔNG NGHỆ:</h3>
+                        <p><strong>Phân tích:</strong> Một xã hội được tổ chức theo hình thức các phường hội (Guilds) cực kỳ chặt chẽ. Mỗi ngành nghề (thợ rèn, thợ mộc, giả kim thuật sư...) đều có một phường hội riêng với các quy tắc nghiêm ngặt về việc ai được phép hành nghề, chất lượng sản phẩm và giá cả. Thể chế này đảm bảo chất lượng hàng hóa nhưng lại bóp nghẹt sự đổi mới và cạnh tranh. Các phát minh công nghệ mới có thể bị coi là mối đe dọa với phương thức sản xuất truyền thống và bị cấm.</p>
+                        <p><i>Ví dụ: Các thành phố tự do trong nhiều bối cảnh fantasy, nơi các phường hội thương mại có quyền lực chính trị lớn hơn cả giới quý tộc.</i></p>`,
+                    supernatural: `<h3>Tác động lên HỆ THỐNG SIÊU NHIÊN:</h3>
+                        <p><strong>Phân tích:</strong> Một nhà nước pháp quyền hiện đại công nhận sự tồn tại của những người có siêu năng lực. Họ ban hành "Đạo luật Đăng ký Siêu nhân". Những người có năng lực buộc phải đăng ký danh tính với chính phủ, được đào tạo và cấp phép để hành động như những anh hùng công vụ hoặc bị giám sát chặt chẽ. Điều này biến hệ thống siêu nhiên từ một thứ hỗn loạn thành một phần được kiểm soát của bộ máy nhà nước.</p>
+                        <p><i>Ví dụ: Bối cảnh của My Hero Academia, nơi các trường học đào tạo anh hùng và các quy định pháp luật về việc sử dụng "Kosei" (năng lực) là một phần trung tâm của xã hội.</i></p>`
+                }
+            },
+            economy: {
+                title: "IV. Khi KINH TẾ & CÔNG NGHỆ là Nguyên Nhân Gốc",
+                impacts: {
+                    geography: `<h3>Tác động lên ĐỊA LÝ & KHÍ HẬU:</h3>
+                        <p><strong>Phân tích:</strong> Sự phát triển của công nghệ terraforming (cải tạo hành tinh) cho phép một nền văn minh liên sao biến những hành tinh cằn cỗi thành những thế giới xanh tươi. Họ có thể tạo ra sông ngòi, trồng rừng và điều khiển khí hậu. Công nghệ đã cho phép họ "viết lại" các quy luật địa lý tự nhiên.</p>
+                        <p><i>Ví dụ: Các hành tinh trong vũ trụ Star Trek thường được cải tạo để có môi trường "Loại M" (giống Trái Đất), cho thấy sức mạnh của công nghệ đối với môi trường.</i></p>`,
+                    history: `<h3>Tác động lên LỊCH SỬ & VĂN HÓA:</h3>
+                        <p><strong>Phân tích:</strong> Việc phát minh ra "Mạng Lưới Tâm Linh" (một dạng internet kết nối trực tiếp vào não bộ) đã tạo ra một cuộc cách mạng văn hóa. Các nền văn hóa riêng biệt dần bị xóa nhòa, tạo ra một nền văn hóa toàn cầu đồng nhất. Tuy nhiên, nó cũng làm nảy sinh các vấn đề mới: những hacker có thể đánh cắp ký ức, và một "nền văn hóa mạng" tách biệt hoàn toàn với thế giới thực được hình thành.</p>
+                        <p><i>Ví dụ: Bối cảnh của Ghost in the Shell hoặc Cyberpunk 2077, nơi công nghệ cấy ghép và kết nối mạng đã thay đổi hoàn toàn định nghĩa về bản sắc, văn hóa và con người.</i></p>`,
+                    politics: `<h3>Tác động lên THỂ CHẾ CHÍNH TRỊ & XÃ HỘI:</h3>
+                        <p><strong>Phân tích:</strong> Trong một thế giới cyberpunk, các siêu tập đoàn (Megacorporations) nắm giữ công nghệ và do đó nắm giữ nền kinh tế. Quyền lực của họ vượt qua cả chính phủ. Họ có lực lượng an ninh riêng, tự ban hành luật lệ trong lãnh thổ của mình. Thể chế chính trị đã chuyển từ "nhà nước-quốc gia" sang "nhà nước-tập đoàn". Xã hội bị phân hóa sâu sắc giữa giới tinh hoa sống trong các tòa tháp công nghệ cao và tầng lớp bình dân sống lay lắt trong các khu ổ chuột bên dưới.</p>`,
+                    supernatural: `<h3>Tác động lên HỆ THỐNG SIÊU NHIÊN:</h3>
+                        <p><strong>Phân tích:</strong> Công nghệ sinh học phát triển đến mức có thể sản xuất hàng loạt "Huyết thanh Ma thuật", cho phép bất kỳ người bình thường nào cũng có thể sử dụng phép thuật trong một thời gian ngắn. Điều này đã phá vỡ thế độc quyền của các pháp sư bẩm sinh. Ma thuật không còn là một món quà thiêng liêng mà trở thành một món hàng hóa, một công cụ có thể mua bán, gây ra sự hỗn loạn và làm đảo lộn trật tự sức mạnh của thế giới.</p>`
+                }
+            },
+            supernatural: {
+                title: "V. Khi HỆ THỐNG SIÊU NHIÊN là Nguyên Nhân Gốc",
+                impacts: {
+                    geography: `<h3>Tác động lên ĐỊA LÝ & KHÍ HẬU:</h3>
+                        <p><strong>Phân tích:</strong> Sự tồn tại của các sinh vật khổng lồ, huyền bí (ví dụ: Titan, Kaiju) liên tục di chuyển và chiến đấu đã định hình lại hoàn toàn địa lý thế giới. Những nơi chúng đi qua trở thành bình địa, những nơi chúng chết đi tạo thành những ngọn núi xương hoặc thung lũng độc. Con người phải xây dựng thành phố ở những nơi an toàn, hoặc thậm chí là xây dựng thành phố di động để né tránh chúng.</p>
+                        <p><i>Ví dụ: Thế giới trong Attack on Titan, nơi các Titan lang thang đã buộc nhân loại phải co cụm sau những bức tường khổng lồ, địa lý sinh tồn của họ hoàn toàn bị định hình bởi mối đe dọa siêu nhiên này.</i></p>`,
+                    history: `<h3>Tác động lên LỊCH SỬ & VĂN HÓA:</h3>
+                        <p><strong>Phân tích:</strong> Trong thế giới này, mọi người khi chết đi đều có thể trở thành những bóng ma có khả năng tương tác với người sống. Điều này đã định hình lại hoàn toàn văn hóa và tôn giáo. Tôn giáo sẽ không tập trung vào "thế giới bên kia" mà là "cách chung sống với người chết". Các nghi lễ tang ma sẽ cực kỳ quan trọng để đảm bảo người chết ra đi thanh thản. Lịch sử sẽ được "sống lại" theo đúng nghĩa đen khi các bóng ma của những nhân vật lịch sử vẫn còn tồn tại.</p>
+                        <p><i>Ví dụ: Bối cảnh trong game Death Stranding, nơi thế giới của người sống và người chết đã hòa vào nhau, tạo ra những cơn mưa "Timefall" làm lão hóa mọi thứ và sự hiện diện của các "BTs" (Beached Things).</i></p>`,
+                    politics: `<h3>Tác động lên THỂ CHẾ CHÍNH TRỊ & XÃ HỘI:</h3>
+                        <p><strong>Phân tích:</strong> Hệ thống ma thuật dựa trên "Huyết Thệ" (Blood Oaths). Một lời thề được thực hiện bằng ma thuật sẽ ràng buộc người thề một cách tuyệt đối, vi phạm sẽ dẫn đến cái chết. Thể chế xã hội sẽ được xây dựng dựa trên sự tin tưởng tuyệt đối vào những lời thề này. Các hợp đồng, luật pháp, và thậm chí cả hôn nhân đều được ràng buộc bằng Huyết Thệ. Một xã hội không cần nhà tù, nhưng lại cực kỳ khắc nghiệt và không có chỗ cho sự tha thứ.</p>`,
+                    economy: `<h3>Tác động lên KINH TẾ & CÔNG NGHỆ:</h3>
+                        <p><strong>Phân tích:</strong> Tồn tại một loại ma thuật gọi là "Tâm Chuyển" (Telekinesis) khá phổ biến, cho phép mọi người di chuyển vật thể bằng ý nghĩ. Điều này khiến cho các công nghệ vận chuyển và lao động chân tay trở nên lỗi thời. Sẽ không có xe tải, cần cẩu hay công nhân xây dựng. Nền kinh tế sẽ tập trung vào những ngành đòi hỏi trí tuệ và sự khéo léo, trong khi mọi công việc nặng nhọc đều được giải quyết bằng Tâm Chuyển.</p>
+                        <p><i>Ví dụ: Trong Mistborn của Brandon Sanderson, khả năng "Đẩy" và "Kéo" kim loại của các Allomancer đã thay đổi hoàn toàn cách di chuyển và chiến đấu trong các thành phố.</i></p>`
+                }
+            }
+        };
+
+        // --- DOM Elements ---
+        const container = document.getElementById('pentagon-container');
+        const nodes = document.querySelectorAll('.node');
+        const line = document.getElementById('connection-line');
+        const contentPanel = document.getElementById('content-panel');
+        const contentDisplay = document.getElementById('content-display');
+
+        // --- State Management ---
+        let selectedNodes = [];
+
+        // --- Functions ---
+
+        // Hàm định vị các node thành hình ngũ giác đều
+        function positionNodes() {
+            const numNodes = nodes.length;
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            const radius = Math.min(width, height) * 0.4; // 40% bán kính của container
+            const centerX = width / 2;
+            const centerY = height / 2;
+
+            nodes.forEach((node, i) => {
+                // Góc ban đầu (-Math.PI / 2) để đỉnh đầu tiên ở trên cùng
+                const angle = (i / numNodes) * 2 * Math.PI - Math.PI / 2;
+                const nodeWidth = node.offsetWidth;
+                const nodeHeight = node.offsetHeight;
+                
+                const x = centerX + radius * Math.cos(angle) - nodeWidth / 2;
+                const y = centerY + radius * Math.sin(angle) - nodeHeight / 2;
+
+                node.style.left = `${x}px`;
+                node.style.top = `${y}px`;
+            });
+            updateUI(); // Cập nhật lại UI sau khi định vị
+        }
+        
+        // Hàm lấy vị trí trung tâm của một node
+        function getNodeCenter(node) {
+            const rect = node.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            // Tọa độ tương đối so với container
+            return {
+                x: rect.left - containerRect.left + rect.width / 2,
+                y: rect.top - containerRect.top + rect.height / 2
+            };
+        }
+
+        // Hàm xử lý khi click vào một node
+        function handleNodeClick(event) {
+            const clickedNode = event.currentTarget;
+
+            // Nếu node đã được chọn, không làm gì cả
+            if (selectedNodes.includes(clickedNode)) return;
+
+            // Thêm node vừa click vào danh sách
+            selectedNodes.push(clickedNode);
+            
+            // Nếu chọn quá 2 node, loại bỏ node cũ nhất
+            if (selectedNodes.length > 2) {
+                selectedNodes.shift();
+            }
+            
+            updateUI();
+        }
+
+        // Hàm cập nhật toàn bộ giao diện (styles, line, content)
+        function updateUI() {
+            // Cập nhật style cho các node
+            nodes.forEach(node => {
+                node.classList.remove('selected', 'second');
+                if (selectedNodes.includes(node)) {
+                    node.classList.add('selected');
+                    if (selectedNodes.indexOf(node) === 1) {
+                         node.classList.add('second');
+                    }
+                }
+            });
+
+            // Cập nhật đường nối
+            if (selectedNodes.length === 2) {
+                const [node1, node2] = selectedNodes;
+                const pos1 = getNodeCenter(node1);
+                const pos2 = getNodeCenter(node2);
+
+                line.setAttribute('x1', pos1.x);
+                line.setAttribute('y1', pos1.y);
+                line.setAttribute('x2', pos2.x);
+                line.setAttribute('y2', pos2.y);
+                line.classList.add('visible');
+                // Thay đổi màu đường kẻ nếu node thứ hai là 'second'
+                line.classList.toggle('second', node2.classList.contains('second'));
+            } else {
+                line.classList.remove('visible');
+            }
+
+            // Cập nhật khung nội dung
+            if (selectedNodes.length === 2) {
+                const [node1, node2] = selectedNodes;
+                const id1 = node1.dataset.id;
+                const name1 = node1.dataset.name;
+                const id2 = node2.dataset.id;
+                const name2 = node2.dataset.name;
+                
+                // Lấy nội dung từ A->B và B->A
+                const content1 = worldbuildingData[id1].impacts[id2] || "";
+                const title1 = worldbuildingData[id1].title || "";
+                
+                const content2 = worldbuildingData[id2].impacts[id1] || "";
+                const title2 = worldbuildingData[id2].title || "";
+                
+                let finalHTML = `<h2>${name1} ↔️ ${name2}</h2>`;
+                finalHTML += `<div class="interaction-block"><h2>${title1}</h2>${content1}</div>`;
+                finalHTML += `<div class="interaction-block"><h2>${title2}</h2>${content2}</div>`;
+
+                contentDisplay.innerHTML = finalHTML;
+                contentPanel.classList.add('visible');
+            } else {
+                contentPanel.classList.remove('visible');
+                 // Thêm một thông điệp hướng dẫn khi chưa chọn đủ
+                contentDisplay.innerHTML = `<h2>Hãy chọn 2 trụ cột</h2><p>Click vào 2 hình tròn bất kỳ để xem mối liên kết nguyên nhân - kết quả giữa chúng trong Worldbuilding.</p>`;
+                if (selectedNodes.length === 0) contentPanel.classList.add('visible');
+            }
+        }
+
+        // --- Initialization ---
+        
+        // Gắn sự kiện click cho tất cả các node
+        nodes.forEach(node => node.addEventListener('click', handleNodeClick));
+        
+        // Định vị các node lần đầu
+        positionNodes();
+        
+        // Hiển thị panel hướng dẫn ban đầu
+        updateUI();
+
+        // Định vị lại các node khi thay đổi kích thước cửa sổ
+        window.addEventListener('resize', positionNodes);
+    });
+    </script>
+</body>
+</html>
